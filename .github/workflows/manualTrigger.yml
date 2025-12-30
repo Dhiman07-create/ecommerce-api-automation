@@ -1,0 +1,27 @@
+name: Ecommerce-API Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      THREADS:
+        required: true
+        type: string
+        default: 1
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+jobs:
+  FlipkartTest:
+    uses: ./.github/workflows/basePipeline.yml
+    with:
+      THREADS: ${{ inputs.THREADS }}
+      ALLURE_REPORT_NAME: Ecommerce-API Regression
+      ALLURE_REPORT_DEPLOY_FOLDER: Ecommerce_API_Regression_Tests
+      TEST_SUITE: testng.xml
+      SEND_EMAIL: 'true'
+      EMAIL_TITLE: Ecommerce-API Regression Test Report
+    secrets: inherit

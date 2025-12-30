@@ -1,0 +1,5 @@
+loginUrl : https://dummyjson.com/auth/login
+searchUrl : https://dummyjson.com/products/search?q=
+productByIdUrl : https://dummyjson.com/products/1
+addToCartUrl : https://dummyjson.com/carts/add
+getCartUrl: https://dummyjson.com/carts/1

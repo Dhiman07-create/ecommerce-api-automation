@@ -1,0 +1,349 @@
+name: Base Pipeline Tests
+
+on:
+  workflow_call:
+    inputs:
+      ENV:
+        required: false
+        type: string
+        default: 'PROD'
+      THREADS:
+        required: true
+        type: string
+      ALLURE_REPORT_NAME:
+        required: true
+        type: string
+      ALLURE_REPORT_DEPLOY_FOLDER:
+        required: true
+        type: string
+      TEST_SUITE:
+        required: false
+        type: string
+        default: 'testng.xml'
+      SEND_EMAIL:
+        required: false
+        type: string
+        default: 'false'
+      EMAIL_TITLE:
+        required: false
+        type: string
+      EMAIL_RECIPIENTS:
+        required: false
+        type: string
+        default: 'dasguptadhiman5@gmail.com'
+
+jobs:
+  execute-tests-and-generate-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # ✅ required for gh-pages deployment
+      pages: write        # ✅ required for Pages
+      id-token: write     # ✅ required for OIDC authentication
+      issues: write
+    timeout-minutes: 300
+    outputs:
+      report-path: ${{ steps.construct_path.outputs.report-path }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js (latest version)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Cache Maven Packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+
+      - name: Run tests
+        id: run-tests
+        run: mvn clean test -Dsurefire.suiteXmlFiles=testng.xml -Dselenide.headless=true
+        continue-on-error: true
+
+      - name: Re-run failed tests
+        if: ${{ steps.run-tests.outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
+        run: |
+          if [ ! -f target/surefire-reports/testng-failed.xml ]; then
+            echo "No failed tests to rerun."
+            exit 0
+          fi
+            
+          sed -E -i 's/thread-count="[0-9]+"/thread-count="${{ inputs.RERUN_FAILED_TESTS_THREADS }}"/g; s/name="Failed suite \[(.*?)\]"/name="\1"/g; s/\(failed\)//g' target/surefire-reports/testng-failed.xml
+          mvn verify -q -Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed.xml -Denv=${{ inputs.ENV }} -Dselenide.headless=true -s settings.xml
+        continue-on-error: true
+
+      - name: Set Allure env properties
+        continue-on-error: true
+        run: |
+          echo "env=${{ inputs.ENV }}" >> ./target/allure-results/environment.properties
+          echo "testSuite=${{ inputs.TEST_SUITE }}" >> ./target/allure-results/environment.properties
+
+      - name: Checkout gh-pages for history
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Extract filename without extension
+        run: |
+          FILENAME=$(basename "${{ inputs.TEST_SUITE }}" .xml)
+          echo "FILENAME=$FILENAME" >> $GITHUB_ENV
+
+      - name: Generate Allure Report
+        uses: andgineer/allure-report@v3.4
+        id: allure-report
+        if: always()
+        env:
+          JAVA_HOME: ""
+          JAVA_HOME_17_X64: ""
+        with:
+          allure-results: ./target/allure-results
+          website: gh-pages
+          reports-site-path: ${{ inputs.ENV }}/${{ env.FILENAME }}
+          max-reports: 10
+
+      - name: Deploy Allure report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ always() && steps.allure-report.outcome == 'success' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ${{ steps.allure-report.outputs.reports-site }}
+          destination_dir: ${{ steps.allure-report.outputs.reports-site-path }}
+
+      - name: Construct Report Path
+        id: construct-path
+        run: |
+          echo "report-path=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_OUTPUT
+          echo "REPORT_PATH=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_ENV
+
+      - name: Publish Allure report link
+        if: ${{ always() && steps.allure-report.outcome == 'success' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const allureReportLink =`https://${context.repo.owner}.github.io/${context.repo.repo}/${process.env.REPORT_PATH}/`;
+            console.log(`Allure Report link: ${ allureReportLink }`)
+            const issueBody = `[Allure report](${ allureReportLink })`
+            const newIssue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '[${{ inputs.ALLURE_REPORT_NAME }} #${{ github.run_number }}',
+              body: issueBody
+            })
+
+      - name: Upload Allure report files to artifacts
+        if: ${{ always() && steps.allure-report.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-folder
+          path: ./gh-pages/${{ env.REPORT_PATH }}
+          retention-days: 1
+
+  send-email:
+    needs: execute-tests-and-generate-report
+    runs-on: ubuntu-latest
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && inputs.SEND_EMAIL == 'true' }}
+    steps:
+      - name: Download folder artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-report-folder
+          path: ./downloaded-artifacts
+
+      - name: Install jq (if necessary)
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Extract test details from Allure report
+        if: always()
+        id: extract-test-details
+        run: |
+          set -e
+
+          SUMMARY=$(jq -e '{total: .statistic.total, passed: .statistic.passed, failed: .statistic.failed, skipped: .statistic.skipped, broken: .statistic.broken, unknown: .statistic.unknown, duration: .time.duration | tostring}' ./downloaded-artifacts/${{ github.run_number }}/widgets/summary.json || echo '{}')
+
+          DURATION_MS=$(echo $SUMMARY | jq -r .duration)
+          DURATION=$((DURATION_MS / 1000))
+          HOURS=$((DURATION / 3600))
+          MINUTES=$(( (DURATION % 3600) / 60 ))
+          SECONDS=$((DURATION % 60))
+          FORMATTED_DURATION=$(printf "%02d:%02d:%02d" $HOURS $MINUTES $SECONDS)
+
+          TOTAL_SCENARIOS=$(echo "$SUMMARY" | jq -r .total)
+          PASSED=$(echo "$SUMMARY" | jq -r .passed)
+          FAILED=$(echo "$SUMMARY" | jq -r .failed)
+          SKIPPED=$(echo "$SUMMARY" | jq -r .skipped)
+          BROKEN=$(echo "$SUMMARY" | jq -r .broken)
+          UNKNOWN=$(echo "$SUMMARY" | jq -r .unknown)
+
+          echo "TOTAL_SCENARIOS=$TOTAL_SCENARIOS" >> $GITHUB_ENV
+          echo "PASSED=$PASSED" >> $GITHUB_ENV
+          echo "FAILED=$FAILED" >> $GITHUB_ENV
+          echo "SKIPPED=$SKIPPED" >> $GITHUB_ENV
+          echo "BROKEN=$BROKEN" >> $GITHUB_ENV
+          echo "UNKNOWN=$UNKNOWN" >> $GITHUB_ENV
+          echo "DURATION=$FORMATTED_DURATION" >> $GITHUB_ENV
+          echo "EXECUTION_DATETIME=$(date)" >> $GITHUB_ENV
+
+          if [ "$TOTAL_SCENARIOS" -gt 0 ]; then
+            PASS_RATE=$((PASSED * 100 / TOTAL_SCENARIOS))
+          else
+            PASS_RATE=0
+          fi
+
+          echo "PASS_RATE=$PASS_RATE" >> $GITHUB_ENV
+
+          if [ "$FAILED" -gt 0 ]; then
+            FAILED_TESTS=$(jq -e '[.. | select(.name? | type == "string" and contains(".")) | {test: .name, test_cases: [.children[]? | select(.status == "failed") | .name]}] | map(select(.test_cases | length > 0))' ./downloaded-artifacts/${{ github.run_number }}/data/suites.json || echo '[]')
+            jq -e '[.. | select(.name? | type == "string" and contains(".")) | {error_message: .name, "test_case": ([.children[]?.name])}]' ./downloaded-artifacts/${{ github.run_number }}/data/categories.json > failed_messages.json || echo '[]' > failed_messages.json
+            echo "HAS_FAILED_TESTS=true" >> $GITHUB_ENV
+            echo "FAILED_TESTS=$(echo "$FAILED_TESTS" | jq -c .)" >> $GITHUB_ENV
+          else
+            echo "HAS_FAILED_TESTS=false" >> $GITHUB_ENV
+            echo "FAILED_TESTS=[]" >> $GITHUB_ENV
+            echo "FAILED_MESSAGES=[]" >> $GITHUB_ENV
+          fi
+
+      - name: Generate Email Body
+        id: generate-email-body
+        run: |
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ inputs.ENV }}/testng/${{ github.run_number }}/"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          EMAIL_BODY=$(cat <<'EOF'
+          <!DOCTYPE html>
+          <html>
+           <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{{inputs.ALLURE_REPORT_NAME}} Test Summary Report</title>
+           </head>
+           <body style="font-family: 'Roboto', Arial, sans-serif; color: #333; margin: 0; padding: 20px; background-color: #f7f9fc;">
+            <h2 style="color: #2c3e50; font-size: 28px; margin-bottom: 20px; font-weight: 600;">Flipkart Regression - Run #${{ github.run_number }}</h2>
+            <div style="display: flex; margin-top: 20px;">
+              <div style="max-width: 48%; width: fit-content; text-align: left;">
+                <img src="https://quickchart.io/chart?c=%7B%22type%22%3A%22doughnut%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22Passed%22%2C%22Failed%22%2C%22Skipped%22%2C%22Broken%22%2C%22Unknown%22%5D%2C%22datasets%22%3A%5B%7B%22data%22%3A%5B${{ env.PASSED }}%2C${{ env.FAILED }}%2C${{ env.SKIPPED }}%2C${{ env.BROKEN }}%2C${{ env.UNKNOWN }}%5D%2C%22backgroundColor%22%3A%5B%22%2397cc64%22%2C%22%23fd5a3e%22%2C%22%23aaa%22%2C%22%23ffd050%22%2C%22%23d35ebe%22%5D%7D%5D%7D%2C%22options%22%3A%7B%22plugins%22%3A%7B%22doughnutlabel%22%3A%7B%22labels%22%3A%5B%7B%22text%22%3A%22${{ env.PASS_RATE }}%25%20Passed%22%2C%22font%22%3A%7B%22size%22%3A20%2C%22weight%22%3A%22bold%22%2C%22color%22%3A%22%23ffffff%22%7D%7D%5D%7D%7D%7D%7D" alt="Test Results Doughnut Chart" width="450">
+              </div>
+            <div style="max-width: 48%; width: fit-content; background-color: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; text-align: left;">         
+              <div style="flex: 1; margin-bottom: 20px;">
+                <p style="font-size: 14px; margin: 5px 0;"><strong>Total Scenarios:</strong> ${{ env.TOTAL_SCENARIOS }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">✅ <strong>Passed:</strong> ${{ env.PASSED }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">❌ <strong>Failed:</strong> ${{ env.FAILED }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">⏭️ <strong>Skipped:</strong> ${{ env.SKIPPED }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">🎗️ <strong>Broken:</strong> ${{ env.BROKEN }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">❓ <strong>Unknown:</strong> ${{ env.UNKNOWN }}</p>
+              </div>
+              <div style="flex: 1; margin-bottom: 20px;">           
+                <p style="font-size: 14px; margin: 5px 0;">🌐 <strong>Environment:</strong> ${{ inputs.ENV }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">🧪 <strong>Test Suite:</strong> ${{ inputs.TEST_SUITE }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">⏰ <strong>Execution Datetime:</strong> ${{ env.EXECUTION_DATETIME }}</p>
+                <p style="font-size: 14px; margin: 5px 0;">📝 <strong>Test Duration:</strong> ${{ env.DURATION }}</p>
+              </div>
+            </div>
+          </div>
+          EOF
+          )
+          
+          if [ "${{ env.HAS_FAILED_TESTS }}" = "true" ]; then
+            FAILED_TESTS_TABLE="<h3 style='font-size: 20px; color: #2c3e50;'>Failed Tests:</h3><table style='width: 100%; border: 1px solid #ddd; border-collapse: collapse; margin-top: 20px;'>"
+            FAILED_TESTS_TABLE="$FAILED_TESTS_TABLE<tr style='background-color: #f2f2f2; text-align: left;'>
+              <th style='padding: 8px; border: 1px solid #ddd;'>Test Suite</th>
+              <th style='padding: 8px; border: 1px solid #ddd;'>Test Name</th>
+              <th style='padding: 8px; border: 1px solid #ddd;'>Error Message</th>
+            </tr>"
+          
+            IFS=$'\n'
+            for test in $(echo '${{ env.FAILED_TESTS }}' | jq -c '.[]'); do
+              TEST_SUITE=$(echo "$test" | jq -r '.test')
+              TEST_CASES=$(echo "$test" | jq -r '.test_cases[]')
+          
+              FAILED_MESSAGES=$(cat failed_messages.json)
+          
+              FIRST_ROW=true
+              for TEST_CASE in $TEST_CASES; do
+                ERROR_MESSAGE=$(echo "$FAILED_MESSAGES" | jq -r --arg TEST_CASE "$TEST_CASE" '.[] | select(.test_case | index($TEST_CASE)) | .error_message')
+                if [ "$FIRST_ROW" = "true" ]; then
+                  FAILED_TESTS_TABLE="$FAILED_TESTS_TABLE
+                  <tr style='background-color: #ffffff;'>
+                    <td style='padding: 8px; border: 1px solid #ddd;' rowspan=\"$(echo "$TEST_CASES" | wc -l)\">$TEST_SUITE</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>$TEST_CASE</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>$ERROR_MESSAGE</td>
+                  </tr>"
+                  FIRST_ROW=false
+                else
+                  FAILED_TESTS_TABLE="$FAILED_TESTS_TABLE
+                  <tr style='background-color: #ffffff;'>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>$TEST_CASE</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>$ERROR_MESSAGE</td>
+                  </tr>"
+                fi
+              done
+            done
+          
+            FAILED_TESTS_TABLE="$FAILED_TESTS_TABLE</table>"
+            EMAIL_BODY="$EMAIL_BODY$FAILED_TESTS_TABLE"
+          fi
+          
+          EMAIL_BODY="$EMAIL_BODY
+            <div style=\"text-align: center; margin-top: 20px;\">
+              <a href="$REPORT_URL" style=\"background-color: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px; margin: 0 10px;\">View Full Report</a>
+              <a href="$RUN_URL" style=\"background-color: #2ecc71; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px; margin: 0 10px;\">GitHub Action Run</a>
+            </div>
+            <div style=\"margin-top: 30px; font-size: 12px; color: #888; text-align: center;\">
+              <p>&copy; 2025 Ecommerce-API Regression Regression Automation</p>
+            </div>
+            </body>
+          </html>"
+          
+          echo "EMAIL_BODY<<EOF" >> $GITHUB_ENV
+          echo "$EMAIL_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+        env:
+          PASSED: ${{ env.PASSED }}
+          FAILED: ${{ env.FAILED }}
+          SKIPPED: ${{ env.SKIPPED }}
+          BROKEN: ${{ env.BROKEN }}
+          TOTAL_SCENARIOS: ${{ env.TOTAL_SCENARIOS }}
+          DURATION: ${{ env.DURATION }}
+          ENVIRONMENT: ${{ inputs.ENV }}
+
+      - name: Send notification email
+        continue-on-error: true
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Flipkart Regression - Run #${{ github.run_number }}"
+          to: ${{ secrets.REPORT_TO }}
+          from: ${{ secrets.SMTP_USERNAME }}
+          html_body: |
+            ${{ env.EMAIL_BODY }}
+
+  cleanup:
+    needs: [execute-tests-and-generate-report, send-email]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Cleanup workspace
+        run: |
+          echo "Cleaning up workspace..."
+          rm -rf ${{ github.workspace }}
