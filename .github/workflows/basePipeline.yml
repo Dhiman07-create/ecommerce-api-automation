@@ -70,7 +70,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: mvn clean test -Dsurefire.suiteXmlFiles=testng.xml -Dselenide.headless=true
+        run: mvn clean test -Denv=inputs-Denv=${{ inputs.ENV }} -Dsurefire.suiteXmlFiles=testng.xml -Dselenide.headless=true
         continue-on-error: true
 
       - name: Re-run failed tests
@@ -235,7 +235,7 @@ jobs:
             <title>{{inputs.ALLURE_REPORT_NAME}} Test Summary Report</title>
            </head>
            <body style="font-family: 'Roboto', Arial, sans-serif; color: #333; margin: 0; padding: 20px; background-color: #f7f9fc;">
-            <h2 style="color: #2c3e50; font-size: 28px; margin-bottom: 20px; font-weight: 600;">Flipkart Regression - Run #${{ github.run_number }}</h2>
+            <h2 style="color: #2c3e50; font-size: 28px; margin-bottom: 20px; font-weight: 600;">Ecommerce-API Regression - Run #${{ github.run_number }}</h2>
             <div style="display: flex; margin-top: 20px;">
               <div style="max-width: 48%; width: fit-content; text-align: left;">
                 <img src="https://quickchart.io/chart?c=%7B%22type%22%3A%22doughnut%22%2C%22data%22%3A%7B%22labels%22%3A%5B%22Passed%22%2C%22Failed%22%2C%22Skipped%22%2C%22Broken%22%2C%22Unknown%22%5D%2C%22datasets%22%3A%5B%7B%22data%22%3A%5B${{ env.PASSED }}%2C${{ env.FAILED }}%2C${{ env.SKIPPED }}%2C${{ env.BROKEN }}%2C${{ env.UNKNOWN }}%5D%2C%22backgroundColor%22%3A%5B%22%2397cc64%22%2C%22%23fd5a3e%22%2C%22%23aaa%22%2C%22%23ffd050%22%2C%22%23d35ebe%22%5D%7D%5D%7D%2C%22options%22%3A%7B%22plugins%22%3A%7B%22doughnutlabel%22%3A%7B%22labels%22%3A%5B%7B%22text%22%3A%22${{ env.PASS_RATE }}%25%20Passed%22%2C%22font%22%3A%7B%22size%22%3A20%2C%22weight%22%3A%22bold%22%2C%22color%22%3A%22%23ffffff%22%7D%7D%5D%7D%7D%7D%7D" alt="Test Results Doughnut Chart" width="450">
@@ -332,7 +332,7 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Flipkart Regression - Run #${{ github.run_number }}"
+          subject: "Ecommerce-API Regression - Run #${{ github.run_number }}"
           to: ${{ secrets.REPORT_TO }}
           from: ${{ secrets.SMTP_USERNAME }}
           html_body: |

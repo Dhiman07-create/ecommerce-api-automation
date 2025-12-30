@@ -15,6 +15,7 @@ jobs:
     uses: ./.github/workflows/basePipeline.yml
     with:
       THREADS: 1
+      ENV: PROD
       ALLURE_REPORT_NAME: Ecommerce-API Regression
       ALLURE_REPORT_DEPLOY_FOLDER: Ecommerce_API_Regression_Tests
       TEST_SUITE: testng.xml
