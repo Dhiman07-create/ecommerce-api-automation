@@ -182,7 +182,7 @@ After CI execution, an automated email is sent containing:
 - UI + API hybrid test flows
 
 ## 👤 Author
-**Dhiman Dasgupta**  <br> **SDET | Automation Engineer**
+**Dhiman Dasgupta**  <br> **SDET | Automation Engineer** <br>
 🔗 GitHub: https://github.com/Dhiman07-create  <br> 🔗 LinkedIn: https://www.linkedin.com/in/dhiman-dasgupta/
 
 ## ⭐ Why This Project Stands Out
