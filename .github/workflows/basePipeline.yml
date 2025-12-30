@@ -70,7 +70,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        run: mvn clean test -Denv=inputs-Denv=${{ inputs.ENV }} -Dsurefire.suiteXmlFiles=testng.xml -Dselenide.headless=true
+        run: mvn clean test -Denv=${{ inputs.ENV }} -Dsurefire.suiteXmlFiles=testng.xml -Dselenide.headless=true
         continue-on-error: true
 
       - name: Re-run failed tests

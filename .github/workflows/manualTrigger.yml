@@ -9,8 +9,11 @@ on:
         default: 1
       ENV:
         required: true
-        type: string
-        default: 'PROD'
+        type: choice
+        options:
+          - qa
+          - prod
+        default: 'prod'
 
 permissions:
   contents: write
