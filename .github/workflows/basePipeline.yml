@@ -306,7 +306,7 @@ jobs:
               <a href="$RUN_URL" style=\"background-color: #2ecc71; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-size: 16px; margin: 0 10px;\">GitHub Action Run</a>
             </div>
             <div style=\"margin-top: 30px; font-size: 12px; color: #888; text-align: center;\">
-              <p>&copy; 2025 Ecommerce-API Regression Automation</p>
+              <p>&copy; 2025 Ecommerce-API Automation</p>
             </div>
             </body>
           </html>"
