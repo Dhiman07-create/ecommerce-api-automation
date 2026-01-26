@@ -1,5 +1,0 @@
-"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
-"","13401","tc03_UpdateCart","Ecommerce API Regression Suite","Fri Jan 16 03:18:05 GMT 2026","passed","Fri Jan 16 03:18:18 GMT 2026","tests.E2ETest","Regression Tests","tests.E2ETest","tc03_UpdateCart"
-"","13402","tc02_AddToCart","Ecommerce API Regression Suite","Fri Jan 16 03:17:51 GMT 2026","passed","Fri Jan 16 03:18:05 GMT 2026","tests.E2ETest","Regression Tests","tests.E2ETest","tc02_AddToCart"
-"","17368","tc04_DeleteCart","Ecommerce API Regression Suite","Fri Jan 16 03:18:18 GMT 2026","passed","Fri Jan 16 03:18:36 GMT 2026","tests.E2ETest","Regression Tests","tests.E2ETest","tc04_DeleteCart"
-"","8768","tc01_LoginAndProductSearchByID","Ecommerce API Regression Suite","Fri Jan 16 03:17:43 GMT 2026","passed","Fri Jan 16 03:17:51 GMT 2026","tests.E2ETest","Regression Tests","tests.E2ETest","tc01_LoginAndProductSearchByID"
