@@ -91,6 +91,10 @@ jobs:
           mvn verify -q -Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed.xml -Denv=${{ inputs.ENV }} -Dselenide.headless=true -s settings.xml
         continue-on-error: true
 
+      - name: Debug pipeline outputs
+        run: |
+          echo "Final outcome: ${{ needs.execute-tests-and-generate-report.outputs.run-tests-outcome }}"
+
       - name: Capture test status
         id: capture-test-status
         run: |
