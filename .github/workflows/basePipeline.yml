@@ -237,7 +237,7 @@ jobs:
           ISSUE_TITLE="[${RUN_NAME}] Scheduled Run Failure #${RUN_NUMBER}"
           ISSUE_BODY="$(cat <<EOF
           Automation test scheduled run '${RUN_NAME}' (run #${RUN_NUMBER}) contains failures.
-          See logs and [Allure report](https://eks-qa-wf-app.cccis.com/wfqas3gateway/wf-qa-allure-reports/${{ inputs.ALLURE_REPORT_DEPLOY_FOLDER }}/${{ inputs.ENV }} ${{ github.run_number }}/index.html) for details.
+          See logs and [Allure report](https://eks-qa-wf-app.cccis.com/wfqas3gateway/wf-qa-allure-reports/${{ inputs.ALLURE_REPORT_DEPLOY_FOLDER }}/${{ inputs.ENV }}/${{ github.run_number }}/index.html) for details.
           ### Failed Testcases:
           ${FAILED_TESTS}
           EOF
