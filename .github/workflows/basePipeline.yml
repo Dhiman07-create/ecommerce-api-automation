@@ -80,7 +80,7 @@ jobs:
 
       - name: Re-run failed tests
         id: rerun-failed-tests
-        if: ${{ steps.execute-tests-and-generate-report.outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
+        if: ${{ steps.execute-tests-and-generate-report.outputs.run-tests-outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
         run: |
           if [ ! -f target/surefire-reports/testng-failed.xml ]; then
             echo "No failed tests to rerun."
