@@ -80,20 +80,18 @@ jobs:
 
       - name: Re-run failed tests
         id: rerun-failed-tests
-        if: ${{ steps.execute-tests-and-generate-report.outputs.run-tests-outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
+        if: ${{ steps.run-tests.outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
         run: |
           if [ ! -f target/surefire-reports/testng-failed.xml ]; then
             echo "No failed tests to rerun."
             exit 0
           fi
-            
-          sed -E -i 's/thread-count="[0-9]+"/thread-count="${{ inputs.RERUN_FAILED_TESTS_THREADS }}"/g; s/name="Failed suite \[(.*?)\]"/name="\1"/g; s/\(failed\)//g' target/surefire-reports/testng-failed.xml
-          mvn verify -q -Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed.xml -Denv=${{ inputs.ENV }} -Dselenide.headless=true -s settings.xml
+          sed -E -i 's/thread-count="[0-9]+"/thread-count="${{ inputs.THREADS }}"/g; s/name="Failed suite \[(.*?)\]"/name="\1"/g; s/\(failed\)//g' target/surefire-reports/testng-failed.xml
+          mvn verify \
+            -Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed.xml \
+            -Denv=${{ inputs.ENV }} \
+            -Dselenide.headless=true
         continue-on-error: true
-
-      - name: Debug pipeline outputs
-        run: |
-          echo "Final outcome: ${{ needs.execute-tests-and-generate-report.outputs.run-tests-outcome }}"
 
       - name: Capture test status
         id: capture-test-status
