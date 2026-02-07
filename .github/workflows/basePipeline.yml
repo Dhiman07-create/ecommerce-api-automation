@@ -97,7 +97,7 @@ jobs:
           if [ "${{ steps.run-tests.outcome }}" = "success" ] || [ "${{ steps.rerun-failed-tests.outcome }}" = "success" ]; then
             echo "run-tests-outcome=PASS" >> $GITHUB_OUTPUT
           else
-            echo "run-tests-outcome=FAIL" >> $GITHUB_OUTPUT
+            echo "run-tests.outcome=FAIL" >> $GITHUB_OUTPUT
           fi
 
       - name: Set Allure env properties
