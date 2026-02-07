@@ -153,6 +153,89 @@ jobs:
           path: ./gh-pages/${{ env.REPORT_PATH }}
           retention-days: 1
 
+      - name: Extract failed testcase names and write to artifact
+        if: always()
+        run: |
+          mkdir -p ./gha-meta         
+          FAILED_FILE=./gha-meta/failed-tests.txt         
+          > "$FAILED_FILE"         
+          for f in ./allure-results/*-result.json; do           
+            # Check that file is non-empty and valid JSON           
+            if [ -s "$f" ] && jq -e . >/dev/null 2>&1 < "$f"; then             
+              STATUS=$(jq -r '.status // empty' "$f")             
+              if [ "$STATUS" = "failed" ]; then               
+                TEST_NAME=$(jq -r '.name' "$f")               
+                # Extract suite from labels (optional)               
+                SUITE=$(jq -r '[.labels[]? | select(.name == "suite") | .value][0] // "unknown suite"' "$f")               
+                echo "- $TEST_NAME (suite: $SUITE)" >> "$FAILED_FILE"             
+              fi           
+            fi
+          done
+          if [ ! -s "$FAILED_FILE" ]; then
+            echo "(No failed tests were identified in Allure result JSON files.)" > "$FAILED_FILE"
+          fi
+
+      - name: Upload failed test list for issue step
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-tests-list
+          path: ./gha-meta/failed-tests.txt
+          retention-days: 3
+
+  create-failure-issue:
+    needs: execute-tests-and-generate-report
+    runs-on: ubuntu-latest
+    if: ${{ needs.execute-tests-and-generate-report.outputs.run-tests-outcome == 'FAIL' }}
+    steps:
+      - name: Install jq if necessary
+        run: |
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+      - name: Download failed tests artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: failed-tests-list
+          path: ./gha-meta
+      - name: Read failed tests into env
+        run: |
+          FAILED=$(cat ./gha-meta/failed-tests.txt)
+          # Store multiline value for next step using GITHUB_ENV
+          echo "FAILED_TESTS<<EOF" >> $GITHUB_ENV
+          echo "$FAILED" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: Create GitHub Issue on Failure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_NAME: ${{ github.workflow }}
+          FAILED_TESTS: ${{ env.FAILED_TESTS }}
+        run: |
+          ISSUE_TITLE="[${RUN_NAME}] Scheduled Run Failure #${RUN_NUMBER}"
+          ISSUE_BODY="$(cat <<EOF
+          Automation test scheduled run '${RUN_NAME}' (run #${RUN_NUMBER}) contains failures.
+          See logs and [Allure report](https://eks-qa-wf-app.cccis.com/wfqas3gateway/wf-qa-allure-reports/${{ inputs.ALLURE_REPORT_DEPLOY_FOLDER }}/${{ inputs.ENV }} ${{ github.run_number }}/index.html) for details.
+          ### Failed Testcases:
+          ${FAILED_TESTS}
+          EOF
+          )"
+          ASSIGNEE="C-DDasgupt_CCCIS"
+          LABEL="automation bug"
+          PAYLOAD=$(jq -n \
+            --arg title "$ISSUE_TITLE" \
+            --arg body "$ISSUE_BODY" \
+            --argjson assignees "[\"$ASSIGNEE\"]" \
+            --argjson labels "[\"$LABEL\"]" \
+            '{title: $title, body: $body, assignees: $assignees, labels: $labels}')
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$REPO/issues \
+            -d "$PAYLOAD")
+          echo "Issue created: $(echo $RESPONSE | jq '.html_url')"
+
   send-email:
     needs: execute-tests-and-generate-report
     runs-on: ubuntu-latest
