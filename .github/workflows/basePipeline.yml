@@ -27,6 +27,10 @@ on:
       EMAIL_TITLE:
         required: false
         type: string
+      RERUN_FAILED_TESTS:
+        required: false
+        type: string
+        default: 'true'
       EMAIL_RECIPIENTS:
         required: false
         type: string
@@ -43,6 +47,7 @@ jobs:
     timeout-minutes: 300
     outputs:
       report-path: ${{ steps.construct_path.outputs.report-path }}
+      run-tests-outcome: ${{steps.capture-test-status.outputs.run-tests.outcome}}
 
     steps:
       - name: Checkout Code
@@ -74,7 +79,8 @@ jobs:
         continue-on-error: true
 
       - name: Re-run failed tests
-        if: ${{ steps.run-tests.outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
+        id: rerun-failed-tests
+        if: ${{ steps.execute-tests-and-generate-report.outcome == 'failure' && inputs.RERUN_FAILED_TESTS == 'true' }}
         run: |
           if [ ! -f target/surefire-reports/testng-failed.xml ]; then
             echo "No failed tests to rerun."
@@ -84,6 +90,15 @@ jobs:
           sed -E -i 's/thread-count="[0-9]+"/thread-count="${{ inputs.RERUN_FAILED_TESTS_THREADS }}"/g; s/name="Failed suite \[(.*?)\]"/name="\1"/g; s/\(failed\)//g' target/surefire-reports/testng-failed.xml
           mvn verify -q -Dsurefire.suiteXmlFiles=target/surefire-reports/testng-failed.xml -Denv=${{ inputs.ENV }} -Dselenide.headless=true -s settings.xml
         continue-on-error: true
+
+      - name: Capture test status
+        id: capture-test-status
+        run: |
+          if [ "${{ steps.run-tests-outcome }}" = "success" ] || [ "${{ steps.rerun-failed-tests }}" = "success" ]; then
+            echo "run-tests-outcome=PASS" >> $GITHUB_OUTPUT
+          else
+            echo "run-tests-outcome=FAIL" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set Allure env properties
         continue-on-error: true

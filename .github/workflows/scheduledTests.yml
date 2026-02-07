@@ -21,4 +21,5 @@ jobs:
       TEST_SUITE: testng.xml
       SEND_EMAIL: 'true'
       EMAIL_TITLE: Ecommerce-API Regression Test Report
+      RERUN_FAILED_TESTS: 'true'
     secrets: inherit
