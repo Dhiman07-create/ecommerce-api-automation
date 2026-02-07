@@ -180,7 +180,7 @@ jobs:
           mkdir -p ./gha-meta         
           FAILED_FILE=./gha-meta/failed-tests.txt         
           > "$FAILED_FILE"         
-          for f in ./allure-results/*-result.json; do           
+          for f in .target/allure-results/*-result.json; do           
             # Check that file is non-empty and valid JSON           
             if [ -s "$f" ] && jq -e . >/dev/null 2>&1 < "$f"; then             
               STATUS=$(jq -r '.status // empty' "$f")             
