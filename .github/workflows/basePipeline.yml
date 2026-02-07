@@ -221,7 +221,7 @@ jobs:
           ${FAILED_TESTS}
           EOF
           )"
-          ASSIGNEE="C-DDasgupt_CCCIS"
+          ASSIGNEE="Dhiman07-create"
           LABEL="automation bug"
           PAYLOAD=$(jq -n \
             --arg title "$ISSUE_TITLE" \
