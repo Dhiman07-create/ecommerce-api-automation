@@ -176,20 +176,21 @@ jobs:
         if: always()
         run: |
           mkdir -p ./gha-meta         
-          FAILED_FILE=./gha-meta/failed-tests.txt         
-          > "$FAILED_FILE"         
-          for f in ./target/allure-results/*-result.json; do           
-            # Check that file is non-empty and valid JSON           
-            if [ -s "$f" ] && jq -e . >/dev/null 2>&1 < "$f"; then             
-              STATUS=$(jq -r '.status // empty' "$f")             
-              if [ "$STATUS" = "failed" ]; then               
-                TEST_NAME=$(jq -r '.name' "$f")               
-                # Extract suite from labels (optional)               
-                SUITE=$(jq -r '[.labels[]? | select(.name == "suite") | .value][0] // "unknown suite"' "$f")               
-                echo "- $TEST_NAME (suite: $SUITE)" >> "$FAILED_FILE"             
-              fi           
+          FAILED_TMP=./gha-meta/failed-tests-raw.txt
+          > "$FAILED_TMP"
+  
+          for f in ./target/allure-results/*-result.json; do
+            if [ -s "$f" ] && jq -e . >/dev/null 2>&1 < "$f"; then
+              STATUS=$(jq -r '.status // empty' "$f")
+              if [ "$STATUS" = "failed" ]; then
+                TEST_NAME=$(jq -r '.name' "$f")
+                SUITE=$(jq -r '[.labels[]? | select(.name == "suite") | .value][0] // "unknown suite"' "$f")
+                echo "$TEST_NAME (suite: $SUITE)" >> "$FAILED_TMP"
+              fi
             fi
           done
+          # Deduplicate + format
+          sort "$FAILED_TMP" | uniq | sed 's/^/- /' > "$FAILED_FILE"
           if [ ! -s "$FAILED_FILE" ]; then
             echo "(No failed tests were identified in Allure result JSON files.)" > "$FAILED_FILE"
           fi
