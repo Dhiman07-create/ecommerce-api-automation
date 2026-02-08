@@ -176,9 +176,13 @@ jobs:
         if: always()
         run: |
           mkdir -p ./gha-meta         
+
           FAILED_TMP=./gha-meta/failed-tests-raw.txt
+          FAILED_FILE=./gha-meta/failed-tests.txt
+
           > "$FAILED_TMP"
-  
+          > "$FAILED_FILE"
+
           for f in ./target/allure-results/*-result.json; do
             if [ -s "$f" ] && jq -e . >/dev/null 2>&1 < "$f"; then
               STATUS=$(jq -r '.status // empty' "$f")
@@ -189,9 +193,11 @@ jobs:
               fi
             fi
           done
+
           # Deduplicate + format
-          sort "$FAILED_TMP" | uniq | sed 's/^/- /' > "$FAILED_FILE"
-          if [ ! -s "$FAILED_FILE" ]; then
+          if [ -s "$FAILED_TMP" ]; then
+            sort "$FAILED_TMP" | uniq | sed 's/^/- /' > "$FAILED_FILE"
+          else
             echo "(No failed tests were identified in Allure result JSON files.)" > "$FAILED_FILE"
           fi
 
