@@ -232,11 +232,10 @@ jobs:
           RUN_NAME: ${{ github.workflow }}
           FAILED_TESTS: ${{ env.FAILED_TESTS }}
         run: |
-          const allureReportLink =`https://${context.repo.owner}.github.io/${context.repo.repo}/${process.env.REPORT_PATH}/`;
           ISSUE_TITLE="[${RUN_NAME}] Scheduled Run Failure #${RUN_NUMBER}"
           ISSUE_BODY="$(cat <<EOF
           Automation test scheduled run '${RUN_NAME}' (run #${RUN_NUMBER}) contains failures.
-          See logs and [Allure report](${ allureReportLink }) for details.
+          See logs and [Allure report] for details.
           ### Failed Testcases:
           ${FAILED_TESTS}
           EOF
