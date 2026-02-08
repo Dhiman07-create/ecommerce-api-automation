@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 300
     outputs:
       report-path: ${{ steps.construct_path.outputs.report-path }}
-      run-tests-outcome: ${{steps.capture-test-status.outputs.run_tests_outcome}}
+      run-tests-outcome: ${{steps.capture-test-status.outputs.run-tests-outcome}}
 
     steps:
       - name: Checkout Code
@@ -99,9 +99,9 @@ jobs:
           echo "Run tests outcome: ${{ steps.run-tests.outcome }}"
           echo "Rerun tests outcome: ${{ steps.rerun-failed-tests.outcome }}"
           if [[ "${{ steps.run-tests.outcome }}" == "success" || "${{ steps.rerun-failed-tests.outcome }}" == "success" ]]; then
-            echo "run_tests_outcome=PASS" >> $GITHUB_OUTPUT
+            echo "run-tests-outcome=PASS" >> $GITHUB_OUTPUT
           else
-            echo "run_tests_outcome=FAIL" >> $GITHUB_OUTPUT
+            echo "run-tests-outcome=FAIL" >> $GITHUB_OUTPUT
           fi
 
       - name: Set Allure env properties

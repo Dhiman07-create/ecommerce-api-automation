@@ -129,7 +129,7 @@ public class E2ETest extends BaseTest {
         String updatedJSON = modifyJson(getTestDataProperties("getCartJSonPath"), requestBodyMap);
         response = ApiRest.get(baseURI, updatedJSON, 200);
         ApiRest.validateResponseContainsKey(response, "id");
-        ApiRest.validateResponseContainsKey(response, "products");
+        ApiRest.validateResponseContainsKey(response, "producta");
     }
 
     @Step
