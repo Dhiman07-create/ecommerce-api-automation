@@ -44,7 +44,11 @@ jobs:
       pages: write        # ✅ required for Pages
       id-token: write     # ✅ required for OIDC authentication
       issues: write
+      deployments: write  # ✅ required to publish the environment URL for the allure-report deployment
     timeout-minutes: 300
+    environment:
+      name: allure-report
+      url: ${{ steps.allure-report.outputs.report-url }}
     outputs:
       report-path: ${{ steps.construct_path.outputs.report-path }}
       run-tests-outcome: ${{steps.capture-test-status.outputs.run-tests-outcome}}
@@ -134,37 +138,14 @@ jobs:
           reports-site-path: ${{ inputs.ENV }}/${{ env.FILENAME }}/${{ github.event_name }}
           max-reports: 10
 
-      - name: Build site deployment payload
-        if: ${{ always() && steps.allure-report.outcome == 'success' }}
-        run: |
-          mkdir -p "./site-deploy/${{ steps.allure-report.outputs.reports-site-path }}"
-          cp -r "${{ steps.allure-report.outputs.reports-site }}/." "./site-deploy/${{ steps.allure-report.outputs.reports-site-path }}/"
-          cat > ./site-deploy/index.html <<'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <title>Ecommerce-API Regression Reports</title>
-          </head>
-          <body>
-            <h1>Ecommerce-API Regression Reports</h1>
-            <ul>
-              <li><a href="prod/testng/schedule/index.html">Latest scheduled run (prod)</a></li>
-              <li><a href="prod/testng/workflow_dispatch/index.html">Latest manual run (prod)</a></li>
-            </ul>
-          </body>
-          </html>
-          EOF
-
-      - name: Deploy report and landing page to GitHub Pages
+      - name: Deploy Allure report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: ${{ always() && steps.allure-report.outcome == 'success' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./site-deploy
-          destination_dir: .
-          keep_files: true
+          publish_dir: ${{ steps.allure-report.outputs.reports-site }}
+          destination_dir: ${{ steps.allure-report.outputs.reports-site-path }}
 
       - name: Construct Report Path
         id: construct-path
