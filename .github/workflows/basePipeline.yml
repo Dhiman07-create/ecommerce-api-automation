@@ -149,6 +149,37 @@ jobs:
           echo "report-path=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_OUTPUT
           echo "REPORT_PATH=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_ENV
 
+      - name: Build site landing page
+        if: ${{ always() && steps.allure-report.outcome == 'success' }}
+        run: |
+          mkdir -p ./site-root
+          cat > ./site-root/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <title>Ecommerce-API Regression Reports</title>
+          </head>
+          <body>
+            <h1>Ecommerce-API Regression Reports</h1>
+            <ul>
+              <li><a href="prod/testng/schedule/index.html">Latest scheduled run (prod)</a></li>
+              <li><a href="prod/testng/workflow_dispatch/index.html">Latest manual run (prod)</a></li>
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Deploy site landing page to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ always() && steps.allure-report.outcome == 'success' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./site-root
+          destination_dir: .
+          keep_files: true
+
       - name: Publish Allure report link
         if: ${{ always() && steps.allure-report.outcome == 'success' }}
         uses: actions/github-script@v7
