@@ -134,26 +134,12 @@ jobs:
           reports-site-path: ${{ inputs.ENV }}/${{ env.FILENAME }}/${{ github.event_name }}
           max-reports: 10
 
-      - name: Deploy Allure report to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        if: ${{ always() && steps.allure-report.outcome == 'success' }}
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ${{ steps.allure-report.outputs.reports-site }}
-          destination_dir: ${{ steps.allure-report.outputs.reports-site-path }}
-
-      - name: Construct Report Path
-        id: construct-path
-        run: |
-          echo "report-path=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_OUTPUT
-          echo "REPORT_PATH=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_ENV
-
-      - name: Build site landing page
+      - name: Build site deployment payload
         if: ${{ always() && steps.allure-report.outcome == 'success' }}
         run: |
-          mkdir -p ./site-root
-          cat > ./site-root/index.html <<'EOF'
+          mkdir -p "./site-deploy/${{ steps.allure-report.outputs.reports-site-path }}"
+          cp -r "${{ steps.allure-report.outputs.reports-site }}/." "./site-deploy/${{ steps.allure-report.outputs.reports-site-path }}/"
+          cat > ./site-deploy/index.html <<'EOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -170,15 +156,21 @@ jobs:
           </html>
           EOF
 
-      - name: Deploy site landing page to GitHub Pages
+      - name: Deploy report and landing page to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         if: ${{ always() && steps.allure-report.outcome == 'success' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./site-root
+          publish_dir: ./site-deploy
           destination_dir: .
           keep_files: true
+
+      - name: Construct Report Path
+        id: construct-path
+        run: |
+          echo "report-path=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_OUTPUT
+          echo "REPORT_PATH=${{ steps.allure-report.outputs.reports-site-path }}" >> $GITHUB_ENV
 
       - name: Publish Allure report link
         if: ${{ always() && steps.allure-report.outcome == 'success' }}
