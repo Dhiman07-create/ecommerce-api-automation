@@ -131,7 +131,7 @@ jobs:
         with:
           allure-results: ./target/allure-results
           website: gh-pages
-          reports-site-path: ${{ inputs.ENV }}/${{ env.FILENAME }}
+          reports-site-path: ${{ inputs.ENV }}/${{ env.FILENAME }}/${{ github.event_name }}
           max-reports: 10
 
       - name: Deploy Allure report to GitHub Pages
@@ -332,7 +332,7 @@ jobs:
       - name: Generate Email Body
         id: generate-email-body
         run: |
-          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ inputs.ENV }}/testng/${{ github.run_number }}/"
+          REPORT_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ inputs.ENV }}/testng/${{ github.event_name }}/${{ github.run_number }}/"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           EMAIL_BODY=$(cat <<'EOF'
