@@ -9,6 +9,7 @@ permissions:
   pages: write
   id-token: write
   issues: write
+  deployments: write
 
 jobs:
   EcommerceAPITest:
